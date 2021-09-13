@@ -6,10 +6,8 @@ import ConnectedClients, { Client } from "./ConnectedClients";
 import { v4 as uuid } from "uuid";
 
 interface SignaledPair {
-  connected: boolean;
   caller: Client;
   callee: Client;
-  roomId: string;
 }
 
 const connectedClients = new ConnectedClients();
@@ -70,24 +68,19 @@ async function main() {
       if (!caller || !callee) return;
 
       caller.socket.emit("callAnswered", call.signal);
+    });
 
-      const roomId = uuid();
-      caller.socket.join(roomId);
-      callee.socket.join(roomId);
-      signaledPairs.push({ connected: true, caller, callee, roomId });
+    socket.on("exception/peerIsCalling/alreadyConnected", (payload) => {
+      const { callerId } = payload;
+      const caller = connectedClients.getById(callerId);
+
+      caller?.socket.emit("exception/callPeer/alreadyConnected", {
+        message: "Requested device is busy",
+      });
     });
 
     socket.once("disconnect", () => {
       connectedClients.remove(socket.id);
-
-      const signaledPair = signaledPairs.find((pair) =>
-        [pair.caller.socket.id, pair.callee.id].includes(socket.id)
-      );
-      if (!signaledPair) return;
-
-      signaledPair.connected = false;
-
-      io.to(signaledPair?.roomId).emit("peerDisconnected");
     });
   });
 

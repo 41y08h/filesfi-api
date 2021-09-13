@@ -1,4 +1,5 @@
 import { Socket } from "socket.io";
+import shortId from "./utils/shortId";
 
 export interface Client {
   id: number;
@@ -7,15 +8,16 @@ export interface Client {
 
 export default class ConnectedClients {
   clients: Client[];
-  private lastId: number;
+  private generatedIds: number[];
 
   constructor() {
     this.clients = [];
-    this.lastId = 0;
+    this.generatedIds = [];
   }
 
   add(socket: Socket) {
-    const client: Client = { id: ++this.lastId, socket };
+    const client: Client = { id: shortId(this.generatedIds), socket };
+    this.generatedIds.push(client.id);
     this.clients.push(client);
     return client;
   }
@@ -31,6 +33,9 @@ export default class ConnectedClients {
   }
 
   remove(socketId: string) {
+    this.generatedIds = this.generatedIds.filter(
+      (id) => this.getBySocketId(socketId)?.id !== id
+    );
     this.clients = this.clients.filter(
       (client) => client.socket.id !== socketId
     );
