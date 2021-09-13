@@ -45,6 +45,8 @@ async function main() {
       const caller = connectedClients.getBySocketId(socket.id);
 
       if (!caller) return;
+      if (caller.id === call.peerId)
+        return socket.emit("exception/callPeer", { type: "callingSelf" });
 
       debug(`c${caller.id}/${caller.socket.id} called c${call.peerId}`);
 
@@ -70,13 +72,13 @@ async function main() {
       caller.socket.emit("callAnswered", call.signal);
     });
 
-    socket.on("exception/peerIsCalling/alreadyConnected", (payload) => {
-      const { callerId } = payload;
-      const caller = connectedClients.getById(callerId);
+    socket.on("exception/peerIsCalling", (error) => {
+      if (error.type === "busy") {
+        const { callerId } = error.payload;
+        const caller = connectedClients.getById(callerId);
 
-      caller?.socket.emit("exception/callPeer/alreadyConnected", {
-        message: "Requested device is busy",
-      });
+        caller?.socket.emit("exception/callPeer", { type: "deviceBusy" });
+      }
     });
 
     socket.once("disconnect", () => {
