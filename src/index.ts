@@ -44,7 +44,7 @@ async function main() {
     socket.on("callPeer", async (call: ICallInitData) => {
       const caller = connectedClients.getBySocketId(socket.id);
 
-      if (!caller) return;
+      if (!caller) return socket.disconnect();
       if (caller.id === call.peerId)
         return socket.emit("exception/callPeer", { type: "callingSelf" });
 
@@ -52,7 +52,8 @@ async function main() {
 
       const callee = connectedClients.getById(call.peerId);
 
-      if (!callee) return;
+      if (!callee)
+        return socket.emit("exception/callPeer", { type: "deviceNotFound" });
 
       const callPayload: ICallData = {
         callerId: caller.id,
