@@ -27,8 +27,8 @@ export default class ConnectedClients {
     return client;
   }
 
-  getById(id: number) {
-    const client = this.clients.find((client) => client.id === id);
+  getById(id: number | string) {
+    const client = this.clients.find((client) => client.id == id);
     return client;
   }
 
