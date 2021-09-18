@@ -2,16 +2,9 @@ import "dotenv/config";
 import createDebug from "debug";
 import { Server } from "socket.io";
 import { ICallInitData, ICallData } from "./interfaces/call";
-import ConnectedClients, { Client } from "./ConnectedClients";
-import { v4 as uuid } from "uuid";
-
-interface SignaledPair {
-  caller: Client;
-  callee: Client;
-}
+import ConnectedClients from "./ConnectedClients";
 
 const connectedClients = new ConnectedClients();
-const signaledPairs: SignaledPair[] = [];
 
 async function main() {
   const debug = createDebug("app");
@@ -23,35 +16,34 @@ async function main() {
     clientURL: process.env.CLIENT_HOSTNAME,
   });
 
+  io.use(async (socket, next) => {
+    const existingClient = connectedClients.getBySocketId(socket.id);
+    if (existingClient) return next();
+
+    connectedClients.add(socket);
+    next();
+  });
+
   io.on("connection", (socket) => {
     const debug = createDebug("app:signaling");
 
-    io.use(async (socket, next) => {
-      const existingClient = connectedClients.getBySocketId(socket.id);
-      if (existingClient) return next();
-
-      connectedClients.add(socket);
-      next();
-    });
-
     socket.on("join", () => {
       const client = connectedClients.getBySocketId(socket.id);
-      if (!client) return;
-
-      socket.emit("join/callback", client.id);
+      if (client) socket.emit("join/callback", client.id);
     });
 
     socket.on("callPeer", async (call: ICallInitData) => {
       const caller = connectedClients.getBySocketId(socket.id);
 
       if (!caller) return socket.disconnect();
+
+      // Stop connection to self
       if (caller.id === call.peerId)
         return socket.emit("exception/callPeer", { type: "callingSelf" });
 
-      debug(`c${caller.id}/${caller.socket.id} called c${call.peerId}`);
-
       const callee = connectedClients.getById(call.peerId);
 
+      // Device not found
       if (!callee)
         return socket.emit("exception/callPeer", { type: "deviceNotFound" });
 
@@ -61,16 +53,8 @@ async function main() {
       };
 
       callee.socket.emit("peerIsCalling", callPayload);
-    });
 
-    socket.on("answerCall", async (call: ICallData) => {
-      const callee = connectedClients.getBySocketId(socket.id);
-      debug(`c${callee?.id}/${callee?.socket.id} answered c${call.callerId}`);
-
-      const caller = connectedClients.getById(call.callerId);
-      if (!caller || !callee) return;
-
-      caller.socket.emit("callAnswered", call.signal);
+      debug(`c${caller.id}/${caller.socket.id} called c${call.peerId}`);
     });
 
     socket.on("exception/peerIsCalling", (error) => {
@@ -80,6 +64,17 @@ async function main() {
 
         caller?.socket.emit("exception/callPeer", { type: "deviceBusy" });
       }
+    });
+
+    socket.on("answerCall", async (call: ICallData) => {
+      const callee = connectedClients.getBySocketId(socket.id);
+      const caller = connectedClients.getById(call.callerId);
+
+      if (!caller || !callee) return;
+
+      caller.socket.emit("callAnswered", call.signal);
+
+      debug(`c${callee?.id}/${callee?.socket.id} answered c${call.callerId}`);
     });
 
     socket.once("disconnect", () => {
