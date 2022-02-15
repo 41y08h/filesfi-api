@@ -14,6 +14,7 @@ async function main() {
   const io: Server = require("socket.io")(PORT, {
     cors: true,
     clientURL: process.env.CLIENT_HOSTNAME,
+    allowEIO3: true,
   });
 
   io.use(async (socket, next) => {
@@ -26,6 +27,7 @@ async function main() {
 
   io.on("connection", (socket) => {
     const debug = createDebug("app:signaling");
+    debug("client connected");
 
     socket.on("join", () => {
       const client = connectedClients.getBySocketId(socket.id);
