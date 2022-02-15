@@ -27,7 +27,6 @@ async function main() {
 
   io.on("connection", (socket) => {
     const debug = createDebug("app:signaling");
-    debug("client connected");
 
     socket.on("join", () => {
       const client = connectedClients.getBySocketId(socket.id);
